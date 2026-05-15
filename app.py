@@ -4,7 +4,6 @@ import time
 import random
 import math
 import pandas as pd
-import plotly.graph_objects as go
 
 # ----------------------------- Page Config -----------------------------
 st.set_page_config(
@@ -53,7 +52,6 @@ if "running" not in st.session_state:
         {"symbol": "XAUUSD", "type": "BUY", "lot": 0.10, "pl": "+$42"},
         {"symbol": "EURUSD", "type": "SELL", "lot": 0.05, "pl": "-$12"}
     ]
-    # Seed logs
     st.session_state.log_lines = [
         "UI loaded successfully.",
         "Dummy server connected.",
@@ -70,52 +68,11 @@ def add_log(message):
     if len(st.session_state.log_lines) > 300:
         st.session_state.log_lines = st.session_state.log_lines[:300]
 
-def draw_chart():
-    vals = st.session_state.chart_points[-48:]
-    fig = go.Figure()
-
-    # Area fill
-    fig.add_trace(go.Scatter(
-        x=list(range(len(vals))),
-        y=vals,
-        mode='lines',
-        line=dict(color='#5b8cff', width=3),
-        fill='tozeroy',
-        fillcolor='rgba(23,48,85,0.4)',
-        name='Price'
-    ))
-
-    # Latest price marker
-    if vals:
-        fig.add_trace(go.Scatter(
-            x=[len(vals)-1],
-            y=[vals[-1]],
-            mode='markers+text',
-            marker=dict(color='#38d9a9', size=12),
-            text=[f"{vals[-1]:,.2f}"],
-            textposition="top center",
-            textfont=dict(color='white'),
-            showlegend=False
-        ))
-
-    fig.update_layout(
-        plot_bgcolor='#08101b',
-        paper_bgcolor='#0d1b2e',
-        font_color='#eff5ff',
-        margin=dict(l=30, r=30, t=10, b=30),
-        xaxis=dict(showgrid=True, gridcolor='#15304f', zeroline=False),
-        yaxis=dict(showgrid=True, gridcolor='#15304f', zeroline=False),
-        height=320
-    )
-    return fig
-
 def update_dummy_data():
-    # Price drift
     drift = random.uniform(-2.8, 2.8)
     st.session_state.current_price = max(2200, st.session_state.current_price + drift)
     st.session_state.chart_points.append(st.session_state.current_price)
     st.session_state.chart_points = st.session_state.chart_points[-60:]
-    # Equity & daily P/L
     eq = 10180 + random.uniform(-60, 80)
     daily_pl = 145 + random.uniform(-40, 55)
     open_trades = 2 if st.session_state.running else 0
@@ -135,7 +92,6 @@ with col_clock:
         f"</div>",
         unsafe_allow_html=True
     )
-    # Status badge
     if st.session_state.running and not st.session_state.paused:
         badge_color = "#89f0cb"
         badge_bg = "#163a32"
@@ -208,7 +164,7 @@ with tab1:
         st.subheader("Strategy Inputs & Controls")
         st.caption("Where trader defines what the bot should do.")
         st.session_state.symbol = st.text_input("Symbol", value=st.session_state.symbol, key="sym")
-        st.session_state.timeframe = st.selectbox("Timeframe", ["5 Minutes", "15 Minutes", "1 Hour", "4 Hours"], 
+        st.session_state.timeframe = st.selectbox("Timeframe", ["5 Minutes", "15 Minutes", "1 Hour", "4 Hours"],
                                                   index=["5 Minutes", "15 Minutes", "1 Hour", "4 Hours"].index(st.session_state.timeframe))
         st.session_state.entry_condition = st.text_input("Entry Condition", value=st.session_state.entry_condition)
         st.session_state.exit_condition = st.text_input("Exit Condition", value=st.session_state.exit_condition)
@@ -218,8 +174,10 @@ with tab1:
 
     with center:
         st.subheader("Live Market Visualization")
-        st.plotly_chart(draw_chart(), use_container_width=True, config={'displayModeBar': False})
-        # Signal and price
+        # Native Streamlit area chart
+        chart_df = pd.DataFrame({"Price": st.session_state.chart_points[-48:]})
+        st.area_chart(chart_df, use_container_width=True, height=320, color="#5b8cff")
+
         col_price, col_signal = st.columns(2)
         with col_price:
             st.metric("Current Price", f"{st.session_state.current_price:,.2f}")
@@ -258,11 +216,9 @@ with tab1:
             ("Signal", "Entry/exit trigger"),
             ("Execution", "Order ko route karna"),
         ]
-        # Display in 4 columns grid
         terms_cols = st.columns(4)
         for i, (title, desc) in enumerate(terms_data):
-            col_idx = i % 4
-            with terms_cols[col_idx]:
+            with terms_cols[i % 4]:
                 st.markdown(
                     f"<div style='background:#102136; padding:8px; border-radius:6px; margin-bottom:8px;'>"
                     f"<b style='color:#eff5ff;'>{title}</b><br>"
@@ -273,13 +229,11 @@ with tab1:
 
     with right:
         st.subheader("Monitoring & Trade State")
-        # Positions table
         st.caption("Open Positions")
         positions_df = pd.DataFrame(st.session_state.open_trades_data)
         st.dataframe(positions_df, use_container_width=True, hide_index=True)
 
         st.markdown("---")
-        # Bot state card
         st.subheader("Bot State")
         if st.session_state.running and not st.session_state.paused:
             state_msg = "Simulation running on dummy server..."
@@ -322,7 +276,6 @@ with tab3:
         st.session_state.breakeven_after = st.text_input("Breakeven After (pips)", value=st.session_state.breakeven_after)
         st.session_state.spread_limit = st.text_input("Spread Limit (pips)", value=st.session_state.spread_limit)
 
-    # Toggle rows
     st.markdown("---")
     st.session_state.risk_guard = st.toggle("Risk Guard (Stops trading when max loss is breached)", value=st.session_state.risk_guard)
     st.session_state.trailing_stop = st.toggle("Trailing Stop (Move stop after profit threshold)", value=st.session_state.trailing_stop)
@@ -345,10 +298,7 @@ with tab4:
     st.markdown("---")
     st.subheader("Execution Monitor")
     if st.session_state.running:
-        if random.random() > 0.8:
-            msg = "Rule engine matched breakout + confirmation. Dummy order path shown."
-        else:
-            msg = "Risk checks passed. Dummy execution path displayed."
+        msg = "Rule engine matched breakout + confirmation. Dummy order path shown." if random.random() > 0.8 else "Risk checks passed. Dummy execution path displayed."
     else:
         msg = "No live order sent — currently in demo showcase mode."
     st.info(msg)
@@ -356,7 +306,6 @@ with tab4:
 # ================= Logs Tab =================
 with tab5:
     st.subheader("System Logs")
-    # Display logs newest first
     log_text = "\n".join(st.session_state.log_lines)
     st.code(log_text, language=None, line_numbers=False)
 
@@ -374,8 +323,6 @@ with bot_col3:
     st.caption("Ready for dummy server / demo presentation")
 
 # ----------------------------- Live Update Loop -----------------------------
-# This block simulates continuous updating by rerunning the script every second when simulation is active.
 if st.session_state.running and not st.session_state.paused:
-    # Wait 1 second to mimic tick interval
     time.sleep(1)
     st.rerun()
